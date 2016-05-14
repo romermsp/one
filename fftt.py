@@ -113,7 +113,4 @@ if __name__ == '__main__':
 ##        pygame.display.update()
     #eventCheck()
     #time.sleep(0.05)
-    #while True:
-        #eventCheck()
-        #time.sleep(1)
-  
+   
