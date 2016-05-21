@@ -1,97 +1,221 @@
+# -*- coding: utf-8 -*-
+import time,pygame,sys,threading
 from pygame.locals import *
+import subprocess32 as subprocess
 from InfoGet import Info
-import threading,time,pygame,sys
-
-class Effect():
-    def fade(self,screen,p,rg):
-        for alpha in rg:
-            p.set_alpha(alpha)
-            screen.fill((0,0,0))
-            screen.blit(p,(0,0))
-            pygame.display.flip()
-            pygame.time.delay(10)         
-    def fadeIn(self,screen,p):
-        rg=range(0,257,32)
-        self.fade(screen,p,rg)
-    def fadeOut(self,screen,p):
-        rg=range(255,0,-32)
-        self.fade(screen,p,rg)
 
 class Imgs():
-    def __init__(self,scrsz):
-        self.curPos=0
-        #self.lastPos=0
+    def __init__(self,screenSize):
+        self.curPos=-1
         self.list=[]
         self.isGetImg=False
-        self.screenSize=scrsz
+        self.screenSize=screenSize
     def getLastCur(self):
-        self.lastImg=self.list[self.curPos]
+        lastImg=self.list[self.curPos]
+        self.nextPos()
+        curImg=self.list[self.curPos]  
+        return  lastImg,curImg
+    def update(self):
+        self.list=[]
+        p = pygame.image.load(sys.path[0]+"/img/p1.png").convert()
+        p=pygame.transform.smoothscale(p,self.screenSize)
+        self.list.append(p)
+        p = pygame.image.load(sys.path[0]+"/img/p2.png").convert()
+        p=pygame.transform.smoothscale(p,self.screenSize)
+        self.list.append(p)
+        #......
+        self.isGetImg=True
+    def nextPos(self):
         self.curPos+=1
         if self.curPos>=len(self.list):
             self.curPos=0
-        self.curImg=self.list[self.curPos]  
-        return self.lastImg,self.curImg
-    def update(self):
-        pt = pygame.image.load(sys.path[0]+"/img/p1.png").convert()
-        p0=pygame.transform.smoothscale(pt,self.screenSize)
-        pt = pygame.image.load(sys.path[0]+"/img/p2.png").convert()
-        p1=pygame.transform.smoothscale(pt,self.screenSize)
-        pt = pygame.image.load(sys.path[0]+"/img/p3.png").convert()
-        p2=pygame.transform.smoothscale(pt,self.screenSize)
-        self.list=[p0,p1,p2]
-        self.isGetImg=True
-
-def eventCheck():
-    for event in pygame.event.get():
-        if event.type == QUIT or event.type==KEYDOWN:
-            pygame.quit()
-            #sys.exit()
-
-def timeTodelay(s):
-    s+=1
-    if s>5:
-        s=0
-    return s
-
-def init():
-    pygame.init()
-    vi=pygame.display.Info()
-    screen_size = (int(vi.current_w),int(vi.current_h*0.94))
-    screen = pygame.display.set_mode(screen_size,FULLSCREEN,32)#FULLSCREEN|HWSURFACE
-    screen.fill((0,0,0))
-    return screen,screen_size
-
-def playboard(screen,imgs):        
-    t=0
-    ef=Effect()
-    while True:   
-        if t==0:
-            li,ci=imgs.getLastCur()
-            ef.fadeOut(screen,li)    
-            ef.fadeIn(screen,ci)
-        t=timeTodelay(t)
-        eventCheck()
-        pygame.time.delay(3000)
-
-try:    
-    ig=Info()
-    screen,size=init()
-    imgs=Imgs(size)
-    th=threading.Thread(target=ig.runPlan,args=(imgs.update,))
-    th.setDaemon(True)
-    th.start()
-    
-    while True:
-        if imgs.isGetImg:
-            playboard(screen,imgs)
-        time.sleep(3)
+#####################################################################
+class Counter():
+    def __init__(self,trigCount,initVal=0):
+        self.count=initVal
+        self.trigCount=trigCount
         
-except Exception,e:
-    print e
-    pygame.quit()
-    #sys.exit()        
+    def reachTrig(self):
+        self.count+=1
+        if self.count>=self.trigCount:
+            self.count=0
+            return True
+        return False
+####################################################################
+class Effect():
+    def __init__(self):
+        self.pos=-1
+        self.outRange=range(255,31,-32)
+        self.inRange=range(32,257,32)
+        self.pOut=None
+        self.pIn=None
+        self.working=False
+        self.pic=None
 
+    def setFadeWork(self,pOut,pIn):
+        self.pOut=pOut
+        self.pIn=pIn
+        self.working=True
+        self.pos=-1
+        
+    def doFade(self):
+        if self.working:
+            if not self.pOut == None:
+                self.pos+=1
+                if self.pos<len(self.outRange):
+                    self.pOut.set_alpha(self.outRange[self.pos])
+                    return self.pOut
+                else:
+                    self.pOut=None
+                    self.pos=-1
+            if not self.pIn == None:
+                self.pos+=1
+                if self.pos<len(self.inRange):
+                    self.pIn.set_alpha(self.inRange[self.pos])
+                    return self.pIn
+                else:
+                    self.pIn=None
+                    self.working=False
+        else:
+            return None
 
+###################################################################
+class UserInput():
+    def __init__(self):
+        self.mode='auto'#'manual'
+        self.cmdList=[]
+        th=threading.Thread(target=self.remoteRecv,args=(self.cmdAction,))
+        th.setDaemon(True)
+        th.start()
 
+    def remoteRecv(self,cmdAction):
+        p=subprocess.Popen('irexec',stdout=subprocess.PIPE)
+        while True:
+            cmd=p.stdout.readline()[:-1]
+            c=cmd.split(' ')
+            if c[0]=='c':
+                cmdAction(c[1])
+            time.sleep(0.1)
+    def cmdAction(self,cmd):
+        if cmd=='blue':
+            if self.mode=='auto':
+                self.mode='manual'
+                self.cmdList.append('manual')
+            elif self.mode=='manual':
+                self.cmdList.append('next')
+    def getCmd(self):
+        if len(self.cmdList)>0:
+            return self.cmdList.pop(0)
+        else:
+            return ''
+    
+    def eventCheck(self):
+        for event in pygame.event.get():
+            if event.type in [QUIT ,KEYDOWN]:
+                pygame.quit()
+                sys.exit()    
+#################################################
+class Note():
+    def __init__(self):
+        self.working=False
+        self.text=None
+        self.font=pygame.font.Font(u'/usr/share/fonts/truetype/wqy/wqy-microhei.ttc',128)
+        self.cnt=Counter(16)
+
+    def setDrawCmd(self,txt):
+        self.working=True
+        self.text=self.font.render(txt,True,(0,0,0),(0,200,0))
+
+    def doDraw(self):
+        if not self.text==None:
+            if self.working:
+                if self.cnt.reachTrig():
+                    self.working=False
+            else:
+                self.text=None
+        return self.text,self.working
+
+###############################################                
+class PlayBorad():
+    def __init__(self):
+        pygame.init()
+        screenSize = (1280,700)
+        screen = pygame.display.set_mode(screenSize,0,32)
+        self.screen=screen
+        self.screenSize=screenSize
+
+    def proc(self):
+        pass
+    
+    def render(self,imgList):
+        if len(imgList)>0:
+            self.screen.fill((0,0,0))
+            for p in imgList:
+                self.screen.blit(p['img'],p['loc'])
+            pygame.display.update()
+                
+    def play(self,imgs):
+        li=None
+        ci=None
+        screen=self.screen
+        cnt=Counter(60,60)
+        ef=Effect()
+        ui=UserInput()
+        note=Note()
+        while True:
+            
+            isTrig=False
+            if ui.mode=='auto':
+                if cnt.reachTrig():
+                    isTrig=True
+            elif ui.mode=='manual':
+                cmd=ui.getCmd()
+                if cmd=='next':
+                    isTrig=True
+                elif cmd=='manual':
+                    note.setDrawCmd(u'手动模式')
+            if isTrig:
+                li,ci=imgs.getLastCur()
+                ef.setFadeWork(li,ci)
+                
+
+            isUpdate=False
+            objList=[]
+            pic={'img':None,'loc':(0,0)}
+            p=ef.doFade()
+            if not p==None:
+                pic['img']=p
+                isUpdate=True
+            else:
+                pic['img']=ci
+            hasTxt,isWk=note.doDraw()
+            if isUpdate:
+                objList.append(pic)
+            else:
+                if hasTxt:
+                    objList.append(pic)
+                    if isWk:
+                        objList.append({'img':note.text,'loc':(700,200)})
+            self.render(objList)
+            
+            ui.eventCheck()
+            time.sleep(0.1)    
+
+###################main##########################
+        
+def main():
+    try:
+        pb=PlayBorad()
+        imgs=Imgs(pb.screenSize)
+        th=threading.Thread(target=Info().runPlan,args=(imgs.update,))
+        th.setDaemon(True)
+        th.start()
+        while True:
+            if imgs.isGetImg:
+                pb.play(imgs)
+            time.sleep(1)
+    except Exception,e:
+        print e
+        pygame.quit()
 
         
