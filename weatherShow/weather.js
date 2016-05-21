@@ -7,7 +7,8 @@ pageSettings: {
   }
 });
 
-var url="http://www.weather.com.cn/weather1d/101280401.shtml";
+//var url="http://www.weather.com.cn/weather1d/101280401.shtml";
+var url="http://www.weather.com.cn/weather1d/101281701.shtml";
 var imgPath="/home/pi/weatherShow/img/";
 
 casper.start();
@@ -35,8 +36,8 @@ casper.then(function(){
 		var al=document.querySelector('.today .sk_alarm a');
 		if (al){ 
 			var t=al.title;
-			t=t.split('fabu');		
-			if (t.length==2):
+			t=t.split('发布');		
+			if (t.length==2)
 				t=t[1];
 			return t;
 		}
