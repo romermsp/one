@@ -7,8 +7,8 @@ pageSettings: {
   }
 });
 
-//var url="http://www.weather.com.cn/weather1d/101280401.shtml";
-var url="http://www.weather.com.cn/weather1d/101281701.shtml";
+var url="http://www.weather.com.cn/weather1d/101280401.shtml";
+//var url="http://www.weather.com.cn/weather1d/101060201.shtml";
 var imgPath="/home/pi/weatherShow/img/";
 
 casper.start();

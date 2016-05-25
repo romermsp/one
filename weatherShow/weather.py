@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import time,pygame,sys,threading
+import time,pygame,sys,threading,traceback
 from pygame.locals import *
 import subprocess32 as subprocess
 from InfoGet import Info
@@ -23,7 +23,9 @@ class Imgs():
         p = pygame.image.load(sys.path[0]+"/img/p2.png").convert()
         p=pygame.transform.smoothscale(p,self.screenSize)
         self.list.append(p)
-        #......
+        p = pygame.image.load(sys.path[0]+"/img/p3.png").convert()
+        p=pygame.transform.smoothscale(p,self.screenSize)
+        self.list.append(p)
         self.isGetImg=True
     def nextPos(self):
         self.curPos+=1
@@ -45,7 +47,7 @@ class Counter():
 class Effect():
     def __init__(self):
         self.pos=-1
-        self.outRange=range(255,31,-32)
+        self.outRange=range(212,0,-32)
         self.inRange=range(32,257,32)
         self.pOut=None
         self.pIn=None
@@ -84,23 +86,34 @@ class UserInput():
     def __init__(self):
         self.mode='auto'#'manual'
         self.cmdList=[]
+        self.lastCmdTime=0
+        self.irexecProc=None
         th=threading.Thread(target=self.remoteRecv,args=(self.cmdAction,))
         th.setDaemon(True)
         th.start()
+        
 
     def remoteRecv(self,cmdAction):
         p=subprocess.Popen('irexec',stdout=subprocess.PIPE)
+        self.irexecProc=p
         while True:
             cmd=p.stdout.readline()[:-1]
             c=cmd.split(' ')
             if c[0]=='c':
                 cmdAction(c[1])
-            time.sleep(0.1)
+            time.sleep(0.01)
+    def killIrexecProc(self):
+        if self.irexecProc.poll()==None:
+            self.irexecProc.kill()
     def cmdAction(self,cmd):
         if cmd=='blue':
+            self.lastCmdTime=time.time()
             if self.mode=='auto':
                 self.mode='manual'
                 self.cmdList.append('manual')
+                th=threading.Thread(target=self.checkIsActive)
+                th.setDaemon(True)
+                th.start()
             elif self.mode=='manual':
                 self.cmdList.append('next')
     def getCmd(self):
@@ -108,10 +121,20 @@ class UserInput():
             return self.cmdList.pop(0)
         else:
             return ''
-    
+
+    def checkIsActive(self):
+        while True:
+            if time.time()-self.lastCmdTime>120:
+                self.mode='auto'
+                break
+            time.sleep(5)
+        
     def eventCheck(self):
         for event in pygame.event.get():
-            if event.type in [QUIT ,KEYDOWN]:
+            if event.type in [MOUSEBUTTONDOWN]:
+                #with open(sys.path[0]+'/log.txt','a') as fo:
+                    #fo.write(str(event.key)+'\n')
+                self.killIrexecProc()
                 pygame.quit()
                 sys.exit()    
 #################################################
@@ -139,8 +162,9 @@ class Note():
 class PlayBorad():
     def __init__(self):
         pygame.init()
-        screenSize = (1280,700)
-        screen = pygame.display.set_mode(screenSize,0,32)
+        di=pygame.display.Info()
+        screenSize = (di.current_w,di.current_h)
+        screen = pygame.display.set_mode(screenSize,FULLSCREEN|HWSURFACE|DOUBLEBUF,32)
         self.screen=screen
         self.screenSize=screenSize
 
@@ -152,13 +176,13 @@ class PlayBorad():
             self.screen.fill((0,0,0))
             for p in imgList:
                 self.screen.blit(p['img'],p['loc'])
-            pygame.display.update()
+            pygame.display.flip()
                 
     def play(self,imgs):
         li=None
         ci=None
         screen=self.screen
-        cnt=Counter(60,60)
+        cnt=Counter(180,180)
         ef=Effect()
         ui=UserInput()
         note=Note()
@@ -195,11 +219,12 @@ class PlayBorad():
                 if hasTxt:
                     objList.append(pic)
                     if isWk:
-                        objList.append({'img':note.text,'loc':(700,200)})
+                        objList.append({'img':note.text,'loc':(self.screenSize[0]-570,10)})
             self.render(objList)
             
             ui.eventCheck()
-            time.sleep(0.1)    
+            if not isUpdate:
+                time.sleep(0.05)    
 
 ###################main##########################
         
@@ -216,6 +241,12 @@ def main():
             time.sleep(1)
     except Exception,e:
         print e
+        with open(sys.path[0]+'/log.txt','a') as fo:
+            fo.write(time.asctime()+"---")
+            traceback.print_exc(file=fo)
+        pb.ui.killIrexecProc()
         pygame.quit()
 
-        
+main()
+
+
