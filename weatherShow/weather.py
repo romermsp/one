@@ -2,31 +2,49 @@
 import time,pygame,sys,threading,traceback
 from pygame.locals import *
 import subprocess32 as subprocess
-from InfoGet import Info
+from InfoGet import WeatherInfo,NewsInfo
 
 class Imgs():
     def __init__(self,screenSize):
         self.curPos=-1
         self.list=[]
+        self.weatherList=[]
+        self.newsList=[]
         self.isGetImg=False
         self.screenSize=screenSize
+        self.mutex=threading.Lock()
     def getLastCur(self):
-        lastImg=self.list[self.curPos]
-        self.nextPos()
-        curImg=self.list[self.curPos]  
-        return  lastImg,curImg
-    def update(self):
-        self.list=[]
-        p = pygame.image.load(sys.path[0]+"/img/p1.png").convert()
-        p=pygame.transform.smoothscale(p,self.screenSize)
-        self.list.append(p)
-        p = pygame.image.load(sys.path[0]+"/img/p2.png").convert()
-        p=pygame.transform.smoothscale(p,self.screenSize)
-        self.list.append(p)
-        p = pygame.image.load(sys.path[0]+"/img/p3.png").convert()
-        p=pygame.transform.smoothscale(p,self.screenSize)
-        self.list.append(p)
+        if self.mutex.acquire():
+            lastImg=self.list[self.curPos]
+            self.nextPos()
+            curImg=self.list[self.curPos]
+            self.mutex.release()
+            return  lastImg,curImg
+    def onUpdate(self):
+        if self.mutex.acquire():
+            self.list=self.weatherList+self.newsList
+        self.mutex.release()
         self.isGetImg=True
+    def loadWeather(self):
+        tmp=[]
+        for i in range(1,4):
+            p = pygame.image.load(sys.path[0]+"/img/p"+ str(i)+".png").convert()
+            p=pygame.transform.smoothscale(p,self.screenSize)
+            tmp.append(p)
+        if self.mutex.acquire():
+            self.weatherList=tmp
+        self.mutex.release()
+        self.onUpdate()
+    def loadNews(self):
+        tmp=[]
+        for i in range(6):
+            p = pygame.image.load(sys.path[0]+"/img/news"+ str(i)+".png").convert()
+            p=pygame.transform.smoothscale(p,self.screenSize)
+            tmp.append(p)
+        if self.mutex.acquire():
+            self.newsList=tmp
+        self.mutex.release()
+        self.onUpdate()
     def nextPos(self):
         self.curPos+=1
         if self.curPos>=len(self.list):
@@ -163,8 +181,9 @@ class PlayBorad():
     def __init__(self):
         pygame.init()
         di=pygame.display.Info()
-        screenSize = (di.current_w,di.current_h)
-        screen = pygame.display.set_mode(screenSize,FULLSCREEN|HWSURFACE|DOUBLEBUF,32)
+        screenSize = (di.current_w,di.current_h-60)
+        screen = pygame.display.set_mode(screenSize,0,32)
+        #screen = pygame.display.set_mode(screenSize,FULLSCREEN|HWSURFACE|DOUBLEBUF,32)
         self.screen=screen
         self.screenSize=screenSize
 
@@ -182,7 +201,7 @@ class PlayBorad():
         li=None
         ci=None
         screen=self.screen
-        cnt=Counter(180,180)
+        cnt=Counter(200,200)
         ef=Effect()
         ui=UserInput()
         note=Note()
@@ -232,7 +251,10 @@ def main():
     try:
         pb=PlayBorad()
         imgs=Imgs(pb.screenSize)
-        th=threading.Thread(target=Info().runPlan,args=(imgs.update,))
+        th=threading.Thread(target=WeatherInfo().runPlan,args=(imgs.loadWeather,))
+        th.setDaemon(True)
+        th.start()
+        th=threading.Thread(target=NewsInfo().runPlan,args=(imgs.loadNews,))
         th.setDaemon(True)
         th.start()
         while True:
@@ -247,6 +269,26 @@ def main():
         pb.ui.killIrexecProc()
         pygame.quit()
 
-main()
+#main()
 
+try:
+    pb=PlayBorad()
+    imgs=Imgs(pb.screenSize)
+    th=threading.Thread(target=WeatherInfo().runPlan,args=(imgs.loadWeather,))
+    th.setDaemon(True)
+    th.start()
+    th=threading.Thread(target=NewsInfo().runPlan,args=(imgs.loadNews,))
+    th.setDaemon(True)
+    th.start()
+    while True:
+        if imgs.isGetImg:
+            pb.play(imgs)
+        time.sleep(1)
+except Exception,e:
+    print e
+    with open(sys.path[0]+'/log.txt','a') as fo:
+        fo.write(time.asctime()+"---")
+        traceback.print_exc(file=fo)
+    pb.ui.killIrexecProc()
+    pygame.quit()
 

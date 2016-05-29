@@ -1,20 +1,13 @@
 import sys,time
 import subprocess32 as subprocess
 from tts import TTS
+
 class Info():
     def __init__(self):
-        self.nextTime=0
-        self.tts=TTS()
+        #self.nextTime=0
+        pass
     def get(self):
-        try:
-            print "get",time.localtime()
-            out=subprocess.check_output(["casperjs",sys.path[0]+"/weather.js"],timeout=60)
-            #print out
-            self.getAlarm(out)
-        except Exception,e:
-            print e
-            return False
-        return True
+        pass
     def genNextTime(self,hAdd):
         t=time.time()+hAdd*3600
         if time.localtime(t).tm_hour>1 and time.localtime(t).tm_hour<6:
@@ -26,11 +19,25 @@ class Info():
                 isOK=self.get()
                 if isOK:
                     update()
-                    self.nextTime=self.genNextTime(3)
+                    self.nextTime=self.genNextTime(4)
                 else:
                     self.nextTime=time.time()+180#retry
-                #print time.localtime(self.nextTime)
             time.sleep(60)
+    
+class WeatherInfo(Info):
+    def __init__(self):
+        self.nextTime=0
+        self.tts=TTS()
+    def get(self):
+        try:
+            print "getWeather",time.localtime()
+            out=subprocess.check_output(["casperjs",sys.path[0]+"/weather.js"],timeout=60)
+            #self.getAlarm(out)
+        except Exception,e:
+            print e
+            return False
+        return True
+
     def getAlarm(self,out):
         try:
             msg=''
@@ -47,5 +54,17 @@ class Info():
             print e
             return False
 
-
+class NewsInfo(Info):
+    def __init__(self):
+        self.nextTime=0
+    def get(self):
+        out=""
+        try:
+            print "getNews",time.localtime()
+            out=subprocess.check_output(["casperjs",sys.path[0]+"/news.js"],timeout=60)
+        except Exception,e:
+            print e
+            print out
+            return False
+        return True
         
