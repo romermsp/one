@@ -2,7 +2,8 @@
 import time,pygame,sys,threading,traceback
 from pygame.locals import *
 import subprocess32 as subprocess
-from InfoGet import WeatherInfo,NewsInfo
+from InfoGet import WeatherInfo,NewsInfo,StockInfo
+from userInput import UserInput
 
 class Imgs():
     def __init__(self,screenSize):
@@ -10,6 +11,7 @@ class Imgs():
         self.list=[]
         self.weatherList=[]
         self.newsList=[]
+        self.stockList=[]
         self.isGetImg=False
         self.screenSize=screenSize
         self.mutex=threading.Lock()
@@ -22,7 +24,7 @@ class Imgs():
             return  lastImg,curImg
     def onUpdate(self):
         if self.mutex.acquire():
-            self.list=self.weatherList+self.newsList
+            self.list=self.weatherList+self.newsList+self.stockList
         self.mutex.release()
         self.isGetImg=True
     def loadWeather(self):
@@ -43,6 +45,15 @@ class Imgs():
             tmp.append(p)
         if self.mutex.acquire():
             self.newsList=tmp
+        self.mutex.release()
+        self.onUpdate()
+    def loadStock(self):
+        tmp=[]
+        p = pygame.image.load(sys.path[0]+"/img/stock.png").convert()
+        p=pygame.transform.smoothscale(p,self.screenSize)
+        tmp.append(p)
+        if self.mutex.acquire():
+            self.stockList=tmp
         self.mutex.release()
         self.onUpdate()
     def nextPos(self):
@@ -100,62 +111,7 @@ class Effect():
             return None
 
 ###################################################################
-class UserInput():
-    def __init__(self):
-        self.mode='auto'#'manual'
-        self.cmdList=[]
-        self.lastCmdTime=0
-        self.irexecProc=None
-        th=threading.Thread(target=self.remoteRecv,args=(self.cmdAction,))
-        th.setDaemon(True)
-        th.start()
-        
 
-    def remoteRecv(self,cmdAction):
-        p=subprocess.Popen('irexec',stdout=subprocess.PIPE)
-        self.irexecProc=p
-        while True:
-            cmd=p.stdout.readline()[:-1]
-            c=cmd.split(' ')
-            if c[0]=='c':
-                cmdAction(c[1])
-            time.sleep(0.01)
-    def killIrexecProc(self):
-        if self.irexecProc.poll()==None:
-            self.irexecProc.kill()
-    def cmdAction(self,cmd):
-        if cmd=='blue':
-            self.lastCmdTime=time.time()
-            if self.mode=='auto':
-                self.mode='manual'
-                self.cmdList.append('manual')
-                th=threading.Thread(target=self.checkIsActive)
-                th.setDaemon(True)
-                th.start()
-            elif self.mode=='manual':
-                self.cmdList.append('next')
-    def getCmd(self):
-        if len(self.cmdList)>0:
-            return self.cmdList.pop(0)
-        else:
-            return ''
-
-    def checkIsActive(self):
-        while True:
-            if time.time()-self.lastCmdTime>120:
-                self.mode='auto'
-                break
-            time.sleep(5)
-        
-    def eventCheck(self):
-        for event in pygame.event.get():
-            if event.type in [MOUSEBUTTONDOWN]:
-                #with open(sys.path[0]+'/log.txt','a') as fo:
-                    #fo.write(str(event.key)+'\n')
-                self.killIrexecProc()
-                pygame.quit()
-                sys.exit()    
-#################################################
 class Note():
     def __init__(self):
         self.working=False
@@ -186,100 +142,82 @@ class PlayBorad():
         #screen = pygame.display.set_mode(screenSize,FULLSCREEN|HWSURFACE|DOUBLEBUF,32)
         self.screen=screen
         self.screenSize=screenSize
+        self.ui=UserInput()
 
-    def proc(self):
-        pass
+    def proc(self,imgs,li,ci,note,ef,cnt,ui):
+        isTrig=False
+        if ui.mode=='auto':
+            if cnt.reachTrig():
+                isTrig=True
+        elif ui.mode=='manual':
+            cmd=ui.getCmd()
+            if cmd=='next':
+                isTrig=True
+            elif cmd=='manual':
+                note.setDrawCmd(u'手动模式')
+        if isTrig:
+            li,ci=imgs.getLastCur()
+            ef.setFadeWork(li,ci)
+                
+        isUpdate=False
+        objList=[]
+        pic={'img':None,'loc':(0,0)}
+        p=ef.doFade()
+        if not p==None:
+            pic['img']=p
+            isUpdate=True
+        else:
+            pic['img']=ci
+        hasTxt,isWk=note.doDraw()
+        if isUpdate:
+            objList.append(pic)
+        else:
+            if hasTxt:
+                objList.append(pic)
+                if isWk:
+                    objList.append({'img':note.text,'loc':(self.screenSize[0]-570,10)})
+        self.render(objList)
+        return isUpdate
     
     def render(self,imgList):
         if len(imgList)>0:
             self.screen.fill((0,0,0))
             for p in imgList:
                 self.screen.blit(p['img'],p['loc'])
-            pygame.display.flip()
+            pygame.display.update()#flip()
                 
     def play(self,imgs):
         li=None
         ci=None
-        screen=self.screen
         cnt=Counter(200,200)
         ef=Effect()
-        ui=UserInput()
         note=Note()
         while True:
-            
-            isTrig=False
-            if ui.mode=='auto':
-                if cnt.reachTrig():
-                    isTrig=True
-            elif ui.mode=='manual':
-                cmd=ui.getCmd()
-                if cmd=='next':
-                    isTrig=True
-                elif cmd=='manual':
-                    note.setDrawCmd(u'手动模式')
-            if isTrig:
-                li,ci=imgs.getLastCur()
-                ef.setFadeWork(li,ci)
-                
-
-            isUpdate=False
-            objList=[]
-            pic={'img':None,'loc':(0,0)}
-            p=ef.doFade()
-            if not p==None:
-                pic['img']=p
-                isUpdate=True
-            else:
-                pic['img']=ci
-            hasTxt,isWk=note.doDraw()
-            if isUpdate:
-                objList.append(pic)
-            else:
-                if hasTxt:
-                    objList.append(pic)
-                    if isWk:
-                        objList.append({'img':note.text,'loc':(self.screenSize[0]-570,10)})
-            self.render(objList)
-            
-            ui.eventCheck()
+            isUpdate=self.proc(imgs,li,ci,note,ef,cnt,self.ui)
+            self.ui.eventCheck(pygame)
             if not isUpdate:
                 time.sleep(0.05)    
 
 ###################main##########################
-        
-def main():
-    try:
-        pb=PlayBorad()
-        imgs=Imgs(pb.screenSize)
-        th=threading.Thread(target=WeatherInfo().runPlan,args=(imgs.loadWeather,))
-        th.setDaemon(True)
-        th.start()
-        th=threading.Thread(target=NewsInfo().runPlan,args=(imgs.loadNews,))
-        th.setDaemon(True)
-        th.start()
-        while True:
-            if imgs.isGetImg:
-                pb.play(imgs)
-            time.sleep(1)
-    except Exception,e:
-        print e
-        with open(sys.path[0]+'/log.txt','a') as fo:
-            fo.write(time.asctime()+"---")
-            traceback.print_exc(file=fo)
-        pb.ui.killIrexecProc()
-        pygame.quit()
+
 
 #main()
 
 try:
     pb=PlayBorad()
     imgs=Imgs(pb.screenSize)
+    
     th=threading.Thread(target=WeatherInfo().runPlan,args=(imgs.loadWeather,))
     th.setDaemon(True)
     th.start()
+    time.sleep(5)
     th=threading.Thread(target=NewsInfo().runPlan,args=(imgs.loadNews,))
     th.setDaemon(True)
     th.start()
+    th=threading.Thread(target=StockInfo().runPlan,args=(imgs.loadStock,))
+    th.setDaemon(True)
+    th.start()
+    
     while True:
         if imgs.isGetImg:
             pb.play(imgs)
