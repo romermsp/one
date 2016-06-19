@@ -9,6 +9,7 @@ function init()
     lastPeakTime    = 0
     rate            = 60
     userRate        = 0
+    userPulse       = ""
     checkTouchCount = 0 
     n               = 0
 end
@@ -63,7 +64,7 @@ function getNextBeat()
     n = n+1
     if(getPeak(5)) then
         if (peak>lastPeak*0.8 and peakTime - lastPeakTime>300000) then
-            r            = math.floor(60000000 / (peakTime - lastPeakTime))
+            local r = math.floor(60000000 / (peakTime - lastPeakTime))
             if (rate<r) then
                 rate = rate+1
             elseif(rate>r) then
@@ -73,7 +74,7 @@ function getNextBeat()
             lastPeak     = peak
             peak         = 0
             print("rate......"..rate)
-            if (n>30) then
+            if (n>60) then
                 userRate = rate
                 --print("userRate: "..userRate)
                 n        = 0
@@ -95,14 +96,23 @@ function isNotTouch(sv)
     end
 end
 
+function dumpPulse(sv)
+    local p   = string.sub("00"..math.floor(sv/20),-2)
+    userPulse = userPulse..p
+    --print(string.rep("-",sv/20)..sv)    
+end
+
+function getData()
+    local d   = userRate.."\r\n"..userPulse
+    userPulse = ""
+    return d
+end
+
 init()
-while true do
+tmr.alarm(0,50,tmr.ALARM_AUTO ,function () 
     sv = adc.read(0)
-    if (sv == nil) then  
-        sv = 0
-    end
-    if(state<4) then
-        print(string.rep("-",sv/20)..sv)
+    if(state~=0) then
+        dumpPulse(sv)
     end
     if(state==0) then 
         getStartTime()
@@ -111,10 +121,9 @@ while true do
     elseif(state==2) then
         getNextBeat()
     end
-    
     if (state~=0 and isNotTouch(sv)) then
         print('init')
         init()
     end
-    tmr.delay(50000)
-end
+    
+end)
