@@ -3,7 +3,7 @@ viewportSize: { width: 1224,height: 768},
 verbose: true,
 //logLevel: "debug",
 pageSettings: {
-    //loadImages: false,
+    //loadImages: false,   
     loadPlugins: false,
   }
 });
