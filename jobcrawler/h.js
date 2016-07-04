@@ -15,8 +15,6 @@ var fs = require("fs");
 
 var sep="#$$#"; //separator
 var nl="#NL#"//newline
-//var url="http://search.51job.com/list/030200%252C00,%2B,2707,%2B,4,%2B,%2B,0,%2B.html?lang=c&stype=2&postchannel=0000&funtype_big=2707&postfrom=030200&btnSltPosition=...&image_x=36&image_y=15&specialarea=00";
-var url="http://search.51job.com/list/030200,000000,0107,00,4,99,%2B,2,1.html?lang=c&stype=1&postchannel=0000&workyear=99&cotype=99&degreefrom=99&jobterm=99&companysize=99&lonlat=0%2C0&radius=-1&ord_field=0&confirmdate=9&fromType=&dibiaoid=0&address=&line=&specialarea=00&from=";
 var curPage=1;
 var jobUrls = [];
 var nextListUrl;
